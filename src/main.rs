@@ -208,12 +208,12 @@ fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
         reader.LoadAsync(stream_len as u32).ok()?.get().ok()?;
         reader.ReadBytes(&mut img_data).ok()?;
         let _ = reader.Close();
-        let mut img = image::load_from_memory(&img_data).ok()?;
+        let img = image::load_from_memory(&img_data).ok()?;
         let mut file = std::fs::File::create("refto.png").ok()?;
         let _ = img.write_to(&mut file, image::ImageFormat::Png);
         if img.height() != 300 || img.width() != 300{
             //img = img.resize(300, 300, image::imageops::FilterType::Lanczos3);
-            img = resize_centered(&img, 300, 300);
+            return Some(resize_centered(&img, 300, 300));
         }
         Some(img)
 
