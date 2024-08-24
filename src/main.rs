@@ -6,10 +6,10 @@ use windows::{core::*, Data,
 
 use std::{fs, result::Result, path::Path,
     process::{Command, Stdio},
-    io::{Error, Cursor}};
+    io::{Error, Cursor, ErrorKind}};
     
-use futures::executor::block_on;
-use image::{DynamicImage, ImageBuffer, Rgba};
+use futures::{executor::block_on, future::err};
+use image::{DynamicImage, ImageBuffer, Rgba, Rgb};
 use indexmap::IndexMap;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
@@ -17,6 +17,15 @@ async fn async_main() -> Result<TCSManager, Error> {
     let manager: TCSManager = TCSManager::RequestAsync()?.await?;
     Ok(manager)
 }
+/// Gets the media properties for the provided `TCS` (Global System Media Transport Controls Session).
+/// 
+/// This function retrieves the media properties for the given `TCS` session, such as title, artist, album, etc.
+/// 
+/// # Arguments
+/// * `sesh` - The `TCS` session to get the media properties for.
+/// 
+/// # Returns
+/// A `Result` containing the `TCSProperties` for the provided `TCS` session, or an `Error` if the operation fails.
 async fn get_props(sesh: TCS) -> Result<TCSProperties, Error> {
     let props: TCSProperties = sesh.TryGetMediaPropertiesAsync()?.await?;
     Ok(props)
@@ -46,6 +55,9 @@ fn main() {
 }
 
 #[derive(Default)]
+/// `SpectreProps` is a struct that holds all of the media metadata found in a 'TCSProperties', but in a more rusty way.
+///
+/// The `new()` and `new_async()` methods can be used to create new instances of the `SpectreProps` struct, while the `sync()` method can be used to update the properties of an existing instance based on the provided `TCSProperties`.
 pub struct SpectreProps {
     title: String,
     artist: String,
@@ -59,6 +71,11 @@ pub struct SpectreProps {
     subtitle: Option<String>,
 }
 
+/// Provides methods for creating and synchronizing a `SpectreProps` struct with `TCSProperties`.
+///
+/// The `new()` method creates a new `SpectreProps` instance with default values.
+/// The `new_async()` method creates a new `SpectreProps` instance and synchronizes it with the provided `TCSProperties`.
+/// The `sync()` method updates the properties of an existing `SpectreProps` instance based on the provided `TCSProperties`.
 impl SpectreProps {
     pub fn new() -> Self {
         Self::default()
@@ -111,6 +128,20 @@ impl SpectreProps {
     }
 }
 
+/// Implements the `IntoIterator` trait for `SpectreProps`, allowing it to be iterated over as a collection of key-value pairs.
+/// 
+/// The iterator yields tuples of `(String, Option<String>)`, where the `String` represents the property name and the `Option<String>`
+/// represents the property value. This allows the `SpectreProps` struct to be easily converted to a collection of its properties,
+/// which can be useful for tasks like serialization or display.
+///
+/// The properties included in the iterator are:
+/// - "Title"
+/// - "Artist"
+/// - "Album"
+/// - "AlbumArtist"
+/// - "Genres" (a comma-separated string of genres)
+/// 
+/// Additional properties can be added to the iterator as needed.
 impl IntoIterator for SpectreProps {
     type Item = (String, Option<String>);
     type IntoIter = indexmap::map::IntoIter<String, Option<String>>;
@@ -127,38 +158,64 @@ impl IntoIterator for SpectreProps {
     }
 }
 
-fn ref_to_thumb(stream_ref: Option<StreamRef>) -> Result<DynamicImage, Error> {
-    let magenta_color = Rgba([255, 0, 255, 255]);
-    let mut img_buffer = ImageBuffer::<Rgba<u8>, _>::new(300, 300);
+/// Creates a thumbnail image from a stream reference.
 
-    for pixel in img_buffer.pixels_mut() {
-        *pixel = magenta_color;
-    }
-    let error_thumb = DynamicImage::ImageRgba8(img_buffer);
-
-    let stream = stream_ref.unwrap().OpenReadAsync()?.get()?;
-
-    let stream_len = stream.Size()? as usize;
-    let mut vec = vec![0u8; stream_len];
-    let reader = DataReader::CreateDataReader(&stream)?;
-    reader.LoadAsync(stream_len as u32)?.get()?;
-    reader.ReadBytes(&mut vec)?;
-
-    reader.Close().ok();
-    stream.Close().ok();
-
-    let img = match image::load_from_memory(&vec) {
-        Ok(img) => img,
-        Err(e) => {
-            eprintln!("Error loading image: {:?}", e);
-            error_thumb
+/// Creates a thumbnail image from a stream reference.
+///
+/// This function takes an optional `StreamRef` and returns a `DynamicImage` representing a thumbnail image. If the `StreamRef` is `None`, it creates a default pink-colored image. If the `StreamRef` is valid, it reads the stream data and attempts to load the image. If there is an error loading the image, it returns the default pink-colored image.
+///
+/// # Arguments
+/// * `reference` - An optional `StreamRef` containing the image data.
+///
+/// # Returns
+/// A `Result` containing a `DynamicImage` representing the thumbnail, or an `Error` if there was a problem that wasn't caught, otherwise returns a default pink image.
+fn always_fail() -> Result<(), std::io::Error> {
+    Err(std::io::Error::new(std::io::ErrorKind::Other, "Simulated failure"))
+}
+fn ref_to_thumb(reference: Option<StreamRef>) -> Result<DynamicImage, Error> {
+    if let Some(img) = __ref_to_thumb(reference)
+    {
+        Ok(img)
+    } else {
+        let error_pink = Rgb([255, 0, 255]);
+        let mut img_buffer = ImageBuffer::<Rgb<u8>, _>::new(300, 300);
+        
+        for pixel in img_buffer.pixels_mut() {
+            *pixel = error_pink;
         }
-    };
-    let mut file = std::fs::File::create("refto.png")?;
-    let _ = img.write_to(&mut file, image::ImageFormat::Png);
-    Ok(img)
+        let img = DynamicImage::ImageRgb8(img_buffer);
+        Ok(img)
+    }
+}
+fn __ref_to_thumb(reference: Option<StreamRef>) -> Option<DynamicImage>  {
+        let stream = reference?.OpenReadAsync().ok()?.get().ok()?; 
+        let stream_len = stream.Size().ok()?;
+        let mut img_data = vec![0u8; stream_len as usize];
+        let reader= DataReader::CreateDataReader(&stream).ok()?; 
+        reader.LoadAsync(stream_len as u32).ok()?.get().ok()?;
+        reader.ReadBytes(&mut img_data).ok()?;
+        match image::load_from_memory(&img_data) {
+            Ok(new_img) => {
+            let mut file = std::fs::File::create("refto.png").ok()?;
+            let _ = new_img.write_to(&mut file, image::ImageFormat::Png);
+            return Some(new_img)},
+            Err(e) => {
+                eprintln!("Error loading image: {:?}", e);
+            }
+        }    
+    return None;
 }
 use tempfile::NamedTempFile;
+/// Opens an image in a browser window for debug purposes.
+///
+/// This function takes an optional `DynamicImage` and a title string, and opens the image in a browser window for debugging purposes. If the `DynamicImage` is `None`, it prints a message indicating a null thumbnail.
+///
+/// # Arguments
+/// * `img` - An optional `DynamicImage` to be displayed in the browser.
+/// * `title` - A string title for the image.
+///
+/// # Returns
+/// A `Result` containing the path to the generated HTML file, or an `Error` if there was a problem creating or opening the file.
 fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Error> {
     if let Some(img) = img {
         let mut file = std::fs::File::create("debug_image.png")?;
