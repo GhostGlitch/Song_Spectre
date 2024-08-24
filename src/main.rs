@@ -4,12 +4,10 @@ use windows::{core::*, Data,
         Control::{
             GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
 
-use std::{fs, result::Result, path::Path,
-    process::{Command, Stdio},
-    io::{Error, Cursor, ErrorKind}};
+use std::{default, fs, io::{Cursor, Error, ErrorKind}, path::Path, process::{Command, Stdio}, result::Result};
     
-use futures::{executor::block_on, future::err};
-use image::{DynamicImage, ImageBuffer, Rgba, Rgb};
+use futures::executor::block_on;
+use image::{DynamicImage, ImageBuffer, Rgb};
 use indexmap::IndexMap;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
@@ -44,9 +42,7 @@ fn main() {
         for prop in spectre_p.into_iter() {
             println!("{}: {}", prop.0, prop.1.as_deref().unwrap_or("None"));
         }
-
-        let tst = ref_to_thumb(thumb_copy);
-        let thumb_file = debug_view_image(tst.ok(), &title_copy).unwrap();
+        let thumb_file = debug_view_image(Some(thumb_copy), &title_copy).unwrap();
         println!("Thumbnail: {thumb_file}");
 
         println!();
@@ -54,21 +50,38 @@ fn main() {
     println!("------------------end------------------")
 }
 
-#[derive(Default)]
+
 /// `SpectreProps` is a struct that holds all of the media metadata found in a 'TCSProperties', but in a more rusty way.
 ///
 /// The `new()` and `new_async()` methods can be used to create new instances of the `SpectreProps` struct, while the `sync()` method can be used to update the properties of an existing instance based on the provided `TCSProperties`.
+#[derive(Debug)]
 pub struct SpectreProps {
     title: String,
     artist: String,
     album: String,
     album_artist: Option<String>,
     genres: Vec<String>,
-    thumbnail: Option<IRandomAccessStreamReference>,
+    thumbnail: DynamicImage,
     track_number: Option<i32>,
     track_count: Option<i32>,
     playback_type: MPT,
     subtitle: Option<String>,
+}
+impl Default for SpectreProps {
+    fn default() -> Self {
+        SpectreProps {
+            title: "Unknown Title".to_string(),
+            artist: "Unknown Artist".to_string(),
+            album: "Unknown Album".to_string(),
+            album_artist: None,
+            genres: vec![],
+            thumbnail: ref_to_thumb(None),
+            track_number: None,
+            track_count: None,
+            playback_type: MPT::Unknown,
+            subtitle: None,
+        }
+    }
 }
 
 /// Provides methods for creating and synchronizing a `SpectreProps` struct with `TCSProperties`.
@@ -89,15 +102,27 @@ impl SpectreProps {
 
     pub fn sync(&mut self, properties: TCSProperties) {
         self.title = match properties.Title() {
-            Ok(title) => title.to_string(),
+            Ok(title) => {if title.is_empty(){
+                "Unknown Title".to_string()
+            } else {
+                title.to_string()
+            }},
             Err(_) => "Unknown Title".to_string(),
         };
         self.artist = match properties.Artist() {
-            Ok(artist) => artist.to_string(),
+            Ok(artist) => {if artist.is_empty(){
+                "Unknown Artist".to_string()
+            } else {
+                artist.to_string()
+            }},
             Err(_) => "Unknown Artist".to_string(),
         };
-        self.album = match properties.AlbumTitle() {
-            Ok(album) => album.to_string(),
+        self.album = match properties.Artist() {
+            Ok(album) => {if album.is_empty(){
+                "Unknown Album".to_string()
+            } else {
+                album.to_string()
+            }},
             Err(_) => "Unknown Album".to_string(),
         };
         self.album_artist = match properties.AlbumArtist() {
@@ -114,7 +139,7 @@ impl SpectreProps {
             }
             Err(_) => vec![],
         };
-        self.thumbnail = properties.Thumbnail().ok();
+        self.thumbnail = ref_to_thumb(properties.Thumbnail().ok());
         self.track_number = properties.TrackNumber().ok();
         self.track_count = properties.AlbumTrackCount().ok();
         self.playback_type = match properties.PlaybackType() {
@@ -125,6 +150,7 @@ impl SpectreProps {
             Ok(subtitle) => Some(subtitle.to_string()),
             Err(_) => None,
         };
+
     }
 }
 
@@ -158,53 +184,48 @@ impl IntoIterator for SpectreProps {
     }
 }
 
-/// Creates a thumbnail image from a stream reference.
 
-/// Creates a thumbnail image from a stream reference.
+
+/// Simulates a failure by returning an `std::io::Error`.
 ///
-/// This function takes an optional `StreamRef` and returns a `DynamicImage` representing a thumbnail image. If the `StreamRef` is `None`, it creates a default pink-colored image. If the `StreamRef` is valid, it reads the stream data and attempts to load the image. If there is an error loading the image, it returns the default pink-colored image.
-///
-/// # Arguments
-/// * `reference` - An optional `StreamRef` containing the image data.
-///
-/// # Returns
-/// A `Result` containing a `DynamicImage` representing the thumbnail, or an `Error` if there was a problem that wasn't caught, otherwise returns a default pink image.
+/// For verifying error handling by triggering errors anywhere easily.
 fn always_fail() -> Result<(), std::io::Error> {
     Err(std::io::Error::new(std::io::ErrorKind::Other, "Simulated failure"))
 }
-fn ref_to_thumb(reference: Option<StreamRef>) -> Result<DynamicImage, Error> {
-    if let Some(img) = __ref_to_thumb(reference)
-    {
-        Ok(img)
-    } else {
-        let error_pink = Rgb([255, 0, 255]);
-        let mut img_buffer = ImageBuffer::<Rgb<u8>, _>::new(300, 300);
-        
-        for pixel in img_buffer.pixels_mut() {
-            *pixel = error_pink;
-        }
-        let img = DynamicImage::ImageRgb8(img_buffer);
-        Ok(img)
-    }
-}
-fn __ref_to_thumb(reference: Option<StreamRef>) -> Option<DynamicImage>  {
+/// Creates a thumbnail image from a stream reference. If the stream reference is `None` or an error occurs, a default pink image is returned.
+///
+/// # Arguments
+/// * `reference` - An optional `StreamRef` that contains the image data.
+///
+/// # Returns
+/// A `DynamicImage` containing the thumbnail image, Or a placeholder image if something goes wrong.
+fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
+    fn ref_to_thumb_in(reference: Option<StreamRef>) -> Option<DynamicImage>  {
         let stream = reference?.OpenReadAsync().ok()?.get().ok()?; 
         let stream_len = stream.Size().ok()?;
         let mut img_data = vec![0u8; stream_len as usize];
         let reader= DataReader::CreateDataReader(&stream).ok()?; 
         reader.LoadAsync(stream_len as u32).ok()?.get().ok()?;
         reader.ReadBytes(&mut img_data).ok()?;
-        match image::load_from_memory(&img_data) {
-            Ok(new_img) => {
-            let mut file = std::fs::File::create("refto.png").ok()?;
-            let _ = new_img.write_to(&mut file, image::ImageFormat::Png);
-            return Some(new_img)},
-            Err(e) => {
-                eprintln!("Error loading image: {:?}", e);
+        let _ = reader.Close();
+        let img = image::load_from_memory(&img_data).ok()?;
+        let mut file = std::fs::File::create("refto.png").ok()?;
+        let _ = img.write_to(&mut file, image::ImageFormat::Png);
+        Some(img)
+    }
+    match ref_to_thumb_in(reference) {
+        Some(img) => img,
+        None => {
+            let error_pink = Rgb([255, 0, 255]);
+            let mut img_buffer = ImageBuffer::<Rgb<u8>, _>::new(300, 300);
+            for pixel in img_buffer.pixels_mut() {
+                *pixel = error_pink;
             }
-        }    
-    return None;
+            DynamicImage::ImageRgb8(img_buffer)
+        }
+    }
 }
+
 use tempfile::NamedTempFile;
 /// Opens an image in a browser window for debug purposes.
 ///
