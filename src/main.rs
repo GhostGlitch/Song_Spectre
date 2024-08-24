@@ -208,10 +208,15 @@ fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
         reader.LoadAsync(stream_len as u32).ok()?.get().ok()?;
         reader.ReadBytes(&mut img_data).ok()?;
         let _ = reader.Close();
-        let img = image::load_from_memory(&img_data).ok()?;
+        let mut img = image::load_from_memory(&img_data).ok()?;
         let mut file = std::fs::File::create("refto.png").ok()?;
         let _ = img.write_to(&mut file, image::ImageFormat::Png);
+        if img.height() != 300 || img.width() != 300{
+            //img = img.resize(300, 300, image::imageops::FilterType::Lanczos3);
+            img = resize_centered(&img, 300, 300);
+        }
         Some(img)
+
     }
     match ref_to_thumb_in(reference) {
         Some(img) => img,
@@ -250,7 +255,7 @@ fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Er
         let temp_dir = Path::new("C:/Users/ghost/AppData/Local/Temp/Spectre/");
         let html_file = temp_dir.join(format!(
             "Spectre-{}-thumb.html",
-            title.replace(" ", "_").replace("&", "and")
+            title.replace(" ", "_").replace("&", "and").replace("?", "QQ")
         ));
         fs::write(&html_file, html)?;
 
@@ -268,4 +273,37 @@ fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Er
         // Beep() equivalent is not available in Rust
         Ok("None".to_string())
     }
+}
+use image::{ GenericImageView, Rgba, RgbaImage};
+
+//Thrown together quickly with AI. look at later.
+fn resize_centered(img: &DynamicImage, target_width: u32, target_height: u32) -> DynamicImage {
+    let (orig_width, orig_height) = img.dimensions();
+    
+    // Calculate the scaling factor
+    let scale = f64::min(target_width as f64 / orig_width as f64, target_height as f64 / orig_height as f64);
+    
+    // New dimensions
+    let new_width = (orig_width as f64 * scale).round() as u32;
+    let new_height = (orig_height as f64 * scale).round() as u32;
+    
+    // Resize the image
+    let resized_image = img.resize(new_width, new_height, image::imageops::FilterType::Lanczos3);
+    
+    // Create a new image with the target dimensions and a transparent background
+    let mut output_image = RgbaImage::new(target_width, target_height);
+    
+    // Calculate padding offsets
+    let x_offset = (target_width - new_width) / 2;
+    let y_offset = (target_height - new_height) / 2;
+    
+    // Draw the resized image onto the new image with padding
+    for y in 0..new_height {
+        for x in 0..new_width {
+            let px = resized_image.get_pixel(x, y);
+            output_image.put_pixel(x + x_offset, y + y_offset, px);
+        }
+    }
+    DynamicImage::ImageRgba8(output_image)
+
 }
