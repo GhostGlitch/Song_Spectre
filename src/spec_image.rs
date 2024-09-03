@@ -1,6 +1,6 @@
 use std::{ fs, io::{Cursor, Error}, path::Path, process::{Command, Stdio}, result::Result, sync::LazyLock};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-
+//debug function, unused import allowed while dev.
 #[allow(unused_imports)]
 use crate::sim_error;
 
@@ -29,13 +29,13 @@ pub(crate)  use image::DynamicImage;
 
     impl ImgExt for DynamicImage {
         fn resize_centered(&self, nwidth: u32, nheight: u32, filter: FilterType) -> Self {
-            // Resize the image
             let inner_image = self.resize(nwidth, nheight, filter);
             let x_offset = (nwidth - inner_image.width()) /2;
             let y_offset = (nheight - inner_image.height()) /2;
             // Create a new image with the target dimensions and a transparent background
             let mut output_image = Self::new_rgba8(nwidth, nheight);
-            //returns either the properly resized image, or in the unlikely event inner image is somehow too large for the output image it returns a resized version of the error image.
+            //returns either the properly resized image, 
+            //or in the unlikely event inner image is somehow too large for the output image it returns a resized version of the error image.
             //may remove this error handling later. might be too both unlikely and indicitive enough that i've done something wrong to bother catching?
             if output_image.copy_from(&inner_image, x_offset, y_offset).is_err() {
                 output_image = ERROR_THUMB.clone().resize_exact(nwidth, nheight, filter);
@@ -56,9 +56,12 @@ pub(crate)  use image::DynamicImage;
     }
 } 
 
+
+pub(crate) const THUMB_W: u32 = 300;
+pub(crate) const THUMB_H: u32 = 300;
 const IMAGE_DATA: &[u8] = include_bytes!("error_thumb.png"); // Embed the PNG file at compile time
 pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
-    image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(300, 300))
+    image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(THUMB_W, THUMB_H))
 });
 
 /// Creates a thumbnail image from a stream reference. If the stream reference is `None` or an error occurs, a default pink image is returned.
@@ -71,14 +74,14 @@ pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
 pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
     return match DynamicImage::from_stream_ref(reference) {
         Ok(mut img) => { 
-            if img.height() != 300 || img.width() != 300 { 
-                img = img.resize_centered(300, 300, FilterType::Lanczos3); 
+            if img.height() != THUMB_H || img.width() != THUMB_W { 
+                img = img.resize_centered(THUMB_W, THUMB_H, FilterType::Lanczos3); 
             } img 
         },
         Err(_) => ERROR_THUMB.clone(),
     };
 }
-
+//debug function, remove before making release build.
 pub(crate)  fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Error> {
     if let Some(img) = img {
         let mut cursor = Cursor::new(Vec::new());
