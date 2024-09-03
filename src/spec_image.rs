@@ -9,7 +9,7 @@ mod traits{
 pub(crate)  use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
 pub(crate) use image::imageops::FilterType;
 pub(crate)  use image::DynamicImage;
-    use std::{io::{Error, ErrorKind}}; 
+    use std::io::{Error, ErrorKind}; 
     use windows::Storage::Streams::DataReader;
     use image::{ GenericImage, ImageResult, ImageError};
     use super::ERROR_THUMB;
