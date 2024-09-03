@@ -1,14 +1,19 @@
-use std::{ fs, io::{Cursor, Error}, path::Path, process::{Command, Stdio}, result::Result, sync::LazyLock};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
-//debug function, unused import allowed while dev.
+use std::sync::LazyLock;
 #[allow(unused_imports)]
-use crate::sim_error;
+use crate::debug;
+
+pub(crate) const THUMB_W: u32 = 300;
+pub(crate) const THUMB_H: u32 = 300;
+const IMAGE_DATA: &[u8] = include_bytes!("error_thumb.png"); // Embed the PNG file at compile time
+pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
+    image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(THUMB_W, THUMB_H))
+});
 
 pub(crate) use traits::*;
 mod traits{
-pub(crate)  use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
+pub(crate) use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
 pub(crate) use image::imageops::FilterType;
-pub(crate)  use image::DynamicImage;
+pub(crate) use image::DynamicImage;
     use std::io::{Error, ErrorKind}; 
     use windows::Storage::Streams::DataReader;
     use image::{ GenericImage, ImageResult, ImageError};
@@ -57,12 +62,7 @@ pub(crate)  use image::DynamicImage;
 } 
 
 
-pub(crate) const THUMB_W: u32 = 300;
-pub(crate) const THUMB_H: u32 = 300;
-const IMAGE_DATA: &[u8] = include_bytes!("error_thumb.png"); // Embed the PNG file at compile time
-pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
-    image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(THUMB_W, THUMB_H))
-});
+
 
 /// Creates a thumbnail image from a stream reference. If the stream reference is `None` or an error occurs, a default pink image is returned.
 ///
@@ -80,35 +80,4 @@ pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
         },
         Err(_) => ERROR_THUMB.clone(),
     };
-}
-//debug function, remove before making release build.
-pub(crate)  fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Error> {
-    if let Some(img) = img {
-        let mut cursor = Cursor::new(Vec::new());
-        let _ = img.write_to(&mut cursor, image::ImageFormat::Png);
-
-        let base64_str = STANDARD.encode(cursor.get_ref());
-        let html = format!("<img src='data:image/png;base64,{}' />", base64_str);
-
-        let temp_dir = Path::new("C:/Users/ghost/AppData/Local/Temp/Spectre/");
-        let html_file = temp_dir.join(format!(
-            "Spectre-{}-thumb.html",
-            title.replace(" ", "_").replace("&", "and").replace("?", "QQ")
-        ));
-        fs::write(&html_file, html)?;
-
-        Command::new("cmd")
-            .args(&["/C", "start", &html_file.to_string_lossy()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
-
-        let var_name = html_file.to_str().unwrap().to_owned();
-        Ok(var_name)
-    } else {
-        println!("{} NULL THUMB", title);
-        // Beep() equivalent is not available in Rust
-        Ok("None".to_string())
-    }
 }

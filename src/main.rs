@@ -1,4 +1,5 @@
 mod spec_image;
+mod debug;
 use spec_image::*;
 #[allow(unused_imports)]
 use windows::{core::*, Data, 
@@ -7,13 +8,8 @@ use windows::{core::*, Data,
             GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
 #[allow(unused_imports)]
 use std::{io::{Error, ErrorKind}, result::Result};
-    
 use futures::executor::block_on;
-
 use indexmap::IndexMap;
-
-
-
 
 async fn async_main() -> Result<TCSManager, Error> {
     let manager: TCSManager = TCSManager::RequestAsync()?.await?;
@@ -46,7 +42,7 @@ fn main() {
         for prop in spectre_p.into_iter() {
             println!("{}: {}", prop.0, prop.1.as_deref().unwrap_or("None"));
         }
-        let thumb_file = debug_view_image(Some(thumb_copy), &title_copy).unwrap();
+        let thumb_file = debug::view_image(Some(thumb_copy), &title_copy).unwrap();
         println!("Thumbnail: {thumb_file}");
 
         println!();
@@ -186,14 +182,4 @@ impl IntoIterator for SpectreProps {
         // Add other fields here as needed
         map.into_iter()
     }
-}
-
-
-
-/// Simulates a failure by returning an `std::io::Error`.
-///
-/// For verifying error handling by triggering errors anywhere easily.
-#[allow(dead_code)]
-fn sim_error() -> Result<(), std::io::Error> {
-    Err(std::io::Error::new(std::io::ErrorKind::Other, "Simulated failure"))
 }
