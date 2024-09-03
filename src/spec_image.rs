@@ -9,9 +9,10 @@ mod traits{
 pub(crate)  use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
 pub(crate) use image::imageops::FilterType;
 pub(crate)  use image::DynamicImage;
-    use std::io::{Error, ErrorKind}; 
+    use std::{io::{Error, ErrorKind}}; 
     use windows::Storage::Streams::DataReader;
-    use image::{  GenericImageView, GenericImage, ImageResult, ImageError};
+    use image::{ GenericImage, ImageResult, ImageError};
+    use super::ERROR_THUMB;
 
     
     trait WinToImgErrExt<T> { fn map_err_img(self) -> Result<T, ImageError>; }
@@ -30,21 +31,14 @@ pub(crate)  use image::DynamicImage;
         fn resize_centered(&self, nwidth: u32, nheight: u32, filter: FilterType) -> Self {
             // Resize the image
             let inner_image = self.resize(nwidth, nheight, filter);
-            let inner_width = inner_image.width();
-            let inner_height = inner_image.height();
-
+            let x_offset = (nwidth - inner_image.width()) /2;
+            let y_offset = (nheight - inner_image.height()) /2;
             // Create a new image with the target dimensions and a transparent background
             let mut output_image = Self::new_rgba8(nwidth, nheight);
-            // Calculate padding offsets
-            let x_offset = (nwidth - inner_width) / 2;
-            let y_offset = (nheight - inner_height) / 2;
-            
-            // Draw the resized image onto the new image with padding
-            for y in 0..inner_height {
-                for x in 0..inner_width {
-                    let px = inner_image.get_pixel(x, y);
-                    output_image.put_pixel(x + x_offset, y + y_offset, px);
-                }
+            //returns either the properly resized image, or in the unlikely event inner image is somehow too large for the output image it returns a resized version of the error image.
+            //may remove this error handling later. might be too both unlikely and indicitive enough that i've done something wrong to bother catching?
+            if output_image.copy_from(&inner_image, x_offset, y_offset).is_err() {
+                output_image = ERROR_THUMB.clone().resize_exact(nwidth, nheight, filter);
             }
             output_image
         }
@@ -74,8 +68,6 @@ pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
 ///
 /// # Returns
 /// A `DynamicImage` containing the thumbnail image, Or a placeholder image if something goes wrong.
-
-
 pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
     return match DynamicImage::from_stream_ref(reference) {
         Ok(mut img) => { 
