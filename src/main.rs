@@ -1,15 +1,19 @@
+mod spec_image;
+use spec_image::*;
+#[allow(unused_imports)]
 use windows::{core::*, Data, 
-    Storage::Streams::{IRandomAccessStreamReference as StreamRef, *},
     Media::{ MediaPlaybackType as MPT, 
         Control::{
             GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
-
-use std::{default, fs, io::{Cursor, Error, ErrorKind}, path::Path, process::{Command, Stdio}, result::Result};
+#[allow(unused_imports)]
+use std::{io::{Error, ErrorKind}, result::Result};
     
 use futures::executor::block_on;
-use image::{DynamicImage, ImageBuffer, Rgb};
+
 use indexmap::IndexMap;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+
+
 
 async fn async_main() -> Result<TCSManager, Error> {
     let manager: TCSManager = TCSManager::RequestAsync()?.await?;
@@ -75,7 +79,7 @@ impl Default for SpectreProps {
             album: "Unknown Album".to_string(),
             album_artist: None,
             genres: vec![],
-            thumbnail: ref_to_thumb(None),
+            thumbnail: ERROR_THUMB.clone(),
             track_number: None,
             track_count: None,
             playback_type: MPT::Unknown,
@@ -189,121 +193,7 @@ impl IntoIterator for SpectreProps {
 /// Simulates a failure by returning an `std::io::Error`.
 ///
 /// For verifying error handling by triggering errors anywhere easily.
-fn always_fail() -> Result<(), std::io::Error> {
+#[allow(dead_code)]
+fn sim_error() -> Result<(), std::io::Error> {
     Err(std::io::Error::new(std::io::ErrorKind::Other, "Simulated failure"))
-}
-/// Creates a thumbnail image from a stream reference. If the stream reference is `None` or an error occurs, a default pink image is returned.
-///
-/// # Arguments
-/// * `reference` - An optional `StreamRef` that contains the image data.
-///
-/// # Returns
-/// A `DynamicImage` containing the thumbnail image, Or a placeholder image if something goes wrong.
-fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
-    fn ref_to_thumb_in(reference: Option<StreamRef>) -> Option<DynamicImage>  {
-        let stream = reference?.OpenReadAsync().ok()?.get().ok()?; 
-        let stream_len = stream.Size().ok()?;
-        let mut img_data = vec![0u8; stream_len as usize];
-        let reader= DataReader::CreateDataReader(&stream).ok()?; 
-        reader.LoadAsync(stream_len as u32).ok()?.get().ok()?;
-        reader.ReadBytes(&mut img_data).ok()?;
-        let _ = reader.Close();
-        let img = image::load_from_memory(&img_data).ok()?;
-        let mut file = std::fs::File::create("refto.png").ok()?;
-        let _ = img.write_to(&mut file, image::ImageFormat::Png);
-        if img.height() != 300 || img.width() != 300{
-            //img = img.resize(300, 300, image::imageops::FilterType::Lanczos3);
-            return Some(resize_centered(&img, 300, 300));
-        }
-        Some(img)
-
-    }
-    match ref_to_thumb_in(reference) {
-        Some(img) => img,
-        None => {
-            let error_pink = Rgb([255, 0, 255]);
-            let mut img_buffer = ImageBuffer::<Rgb<u8>, _>::new(300, 300);
-            for pixel in img_buffer.pixels_mut() {
-                *pixel = error_pink;
-            }
-            DynamicImage::ImageRgb8(img_buffer)
-        }
-    }
-}
-
-use tempfile::NamedTempFile;
-/// Opens an image in a browser window for debug purposes.
-///
-/// This function takes an optional `DynamicImage` and a title string, and opens the image in a browser window for debugging purposes. If the `DynamicImage` is `None`, it prints a message indicating a null thumbnail.
-///
-/// # Arguments
-/// * `img` - An optional `DynamicImage` to be displayed in the browser.
-/// * `title` - A string title for the image.
-///
-/// # Returns
-/// A `Result` containing the path to the generated HTML file, or an `Error` if there was a problem creating or opening the file.
-fn debug_view_image(img: Option<DynamicImage>, title: &str) -> Result<String, Error> {
-    if let Some(img) = img {
-        let mut file = std::fs::File::create("debug_image.png")?;
-        let _ = img.write_to(&mut file, image::ImageFormat::Png);
-        let mut cursor = Cursor::new(Vec::new());
-        let _ = img.write_to(&mut cursor, image::ImageFormat::Png);
-
-        let base64_str = STANDARD.encode(cursor.get_ref());
-        let html = format!("<img src='data:image/png;base64,{}' />", base64_str);
-
-        let temp_dir = Path::new("C:/Users/ghost/AppData/Local/Temp/Spectre/");
-        let html_file = temp_dir.join(format!(
-            "Spectre-{}-thumb.html",
-            title.replace(" ", "_").replace("&", "and").replace("?", "QQ")
-        ));
-        fs::write(&html_file, html)?;
-
-        Command::new("cmd")
-            .args(&["/C", "start", &html_file.to_string_lossy()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
-
-        let var_name = html_file.to_str().unwrap().to_owned();
-        Ok(var_name)
-    } else {
-        println!("{} NULL THUMB", title);
-        // Beep() equivalent is not available in Rust
-        Ok("None".to_string())
-    }
-}
-use image::{ GenericImageView, Rgba, RgbaImage};
-
-//Thrown together quickly with AI. look at later.
-fn resize_centered(img: &DynamicImage, target_width: u32, target_height: u32) -> DynamicImage {
-    let (orig_width, orig_height) = img.dimensions();
-    
-    // Calculate the scaling factor
-    let scale = f64::min(target_width as f64 / orig_width as f64, target_height as f64 / orig_height as f64);
-    
-    // New dimensions
-    let new_width = (orig_width as f64 * scale).round() as u32;
-    let new_height = (orig_height as f64 * scale).round() as u32;
-    
-    // Resize the image
-    let resized_image = img.resize(new_width, new_height, image::imageops::FilterType::Lanczos3);
-    
-    // Create a new image with the target dimensions and a transparent background
-    let mut output_image = RgbaImage::new(target_width, target_height);
-    
-    // Calculate padding offsets
-    let x_offset = (target_width - new_width) / 2;
-    let y_offset = (target_height - new_height) / 2;
-    
-    // Draw the resized image onto the new image with padding
-    for y in 0..new_height {
-        for x in 0..new_width {
-            let px = resized_image.get_pixel(x, y);
-            output_image.put_pixel(x + x_offset, y + y_offset, px);
-        }
-    }
-    DynamicImage::ImageRgba8(output_image)
-
 }

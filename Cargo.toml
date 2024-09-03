@@ -1,3 +1,5 @@
+[profile.release]
+debug = true
 [package]
 name = "song_spectre"
 version = "0.0.3"
