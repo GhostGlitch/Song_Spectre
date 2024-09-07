@@ -23,7 +23,7 @@ impl From<MPT> for SPT {
             1 => SPT::AUDIO,
             2 => SPT::VIDEO,
             3 => SPT::IMAGE,
-            _ => SPT::UNKNOWN,
+            _ => unreachable!(),
         }
     }
 }
@@ -40,7 +40,7 @@ impl Display for  SPT{
             1 => write!(f, "AUDIO"),
             2 => write!(f, "VIDEO"),
             3 => write!(f, "IMAGE"),
-            _ => write!(f, "UNKNOWN"),
+            _ => unreachable!(),
         }
     }
 }
