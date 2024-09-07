@@ -37,7 +37,7 @@ pub(crate)  fn view_image(img: Option<&DynamicImage>, title: &str) -> Result<Str
         fs::write(&html_file, html)?;
 
         Command::new("cmd")
-            .args(&["/C", "start", &html_file.to_string_lossy()])
+            .args(["/C", "start", &html_file.to_string_lossy()])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -62,7 +62,7 @@ pub(crate) fn sim_error() -> Result<(), std::io::Error> {
 #[cfg(debug_assertions)]
 pub(crate) fn display_spec_props(spec_props: &SpectreProps) -> Result<(), Error> {
     let thumb_file = view_image(Some(&spec_props.thumbnail), &spec_props.title)?;
-    print!("{}", spec_props.to_string());
+    print!("{}", spec_props);
     println!("Thumbnail: {thumb_file}");
     println!();
     Ok(())

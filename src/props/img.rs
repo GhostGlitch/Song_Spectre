@@ -72,12 +72,12 @@ pub(crate) use image::DynamicImage;
 /// # Returns
 /// A `DynamicImage` containing the thumbnail image, Or a placeholder image if something goes wrong.
 pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
-    return match DynamicImage::from_stream_ref(reference) {
+    match DynamicImage::from_stream_ref(reference) {
         Ok(mut img) => { 
             if img.height() != THUMB_H || img.width() != THUMB_W { 
                 img = img.resize_centered(THUMB_W, THUMB_H, FilterType::Lanczos3); 
             } img 
         },
         Err(_) => ERROR_THUMB.clone(),
-    };
+    }
 }
