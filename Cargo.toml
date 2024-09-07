@@ -2,7 +2,7 @@
 debug = true
 [package]
 name = "song_spectre"
-version = "0.0.3"
+version = "0.0.5"
 edition = "2021"
 
 [dependencies]
