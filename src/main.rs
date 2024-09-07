@@ -1,4 +1,3 @@
-mod img;
 mod props;
 #[cfg(debug_assertions)]
 mod debug;

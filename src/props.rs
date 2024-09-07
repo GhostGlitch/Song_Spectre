@@ -1,14 +1,15 @@
+mod img;
+pub use img::*;
 #[allow(unused_imports)]
 use windows::{core::*, Data, Foundation::IReference,
     Media::{ MediaPlaybackType as MPT, 
         Control::{
             GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
-pub use crate::img::*;
 use core::fmt;
 use std::fmt::Display;
 
 #[derive(PartialEq, Eq, Copy, Clone, Default)]
-pub struct SPT(pub i8);
+pub struct SPT(pub u8);
 impl SPT {
     pub const UNKNOWN: Self = Self(0);
     pub const AUDIO: Self = Self(1);
