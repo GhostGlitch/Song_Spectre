@@ -8,11 +8,13 @@ edition = "2021"
 [dependencies]
 base64 = "0.22.1"
 futures = "0.3.30"
-image = "0.25.1"
-indexmap = "2.2.6"
-tempfile = "3.10.1"
+image = "0.25.2"
+indexmap = "2.5.0"
+tempfile = "3.12.0"
+[dependencies.windows-sys]
+version = "=0.59.0"
 [dependencies.windows]
-version = "0.57.0"
+version = "0.58.0"
 features = [
     "Data_Xml_Dom",
     "Win32_Foundation",

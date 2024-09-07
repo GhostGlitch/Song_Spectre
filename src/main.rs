@@ -12,7 +12,7 @@ use std::{io::{Error, ErrorKind}, result::Result};
 use futures::executor::block_on;
 
 async fn get_tcs_manager() -> Result<TCSManager, Error> {
-    let manager: TCSManager = TCSManager::RequestAsync()?.await?;
+    let manager: TCSManager = TCSManager::RequestAsync()?.get()?;
     Ok(manager)
 }
 /// Gets the media properties for the provided `TCS` (Global System Media Transport Controls Session).
@@ -25,7 +25,7 @@ async fn get_tcs_manager() -> Result<TCSManager, Error> {
 /// # Returns
 /// A `Result` containing the `TCSProperties` for the provided `TCS` session, or an `Error` if the operation fails.
 async fn get_tcs_props(sesh: TCS) -> Result<TCSProperties, Error> {
-    let props: TCSProperties = sesh.TryGetMediaPropertiesAsync()?.await?;
+    let props: TCSProperties = sesh.TryGetMediaPropertiesAsync()?.get()?;
     Ok(props)
 }
 fn main() {
