@@ -1,6 +1,6 @@
-mod spec_image;
+mod img;
 mod debug;
-use spec_image::*;
+use img::*;
 #[allow(unused_imports)]
 use windows::{core::*, Data, 
     Media::{ MediaPlaybackType as MPT, 
