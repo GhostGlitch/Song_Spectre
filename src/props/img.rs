@@ -9,6 +9,7 @@ pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
     image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(THUMB_W, THUMB_H))
 });
 
+
 pub(crate) use traits::*;
 mod traits{
 pub(crate) use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
@@ -80,4 +81,59 @@ pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
         },
         Err(_) => ERROR_THUMB.clone(),
     }
+}
+
+
+use windows::Win32::Foundation::GetLastError;
+use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateDIBitmap, DeleteObject, GetDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CBM_INIT, DIB_RGB_COLORS, HBITMAP, HDC, RGBQUAD};
+use windows::Win32::Graphics::Gdi::HGDIOBJ;
+use image::GenericImageView;
+
+// Function to convert DynamicImage to a GDI bitmap
+pub fn dynamic_image_to_bitmap(hdc: HDC, image: &DynamicImage) -> Result<HBITMAP, String> {
+    let (width, height) = (image.dimensions());
+    let image_data = image.to_rgba8(); // Convert to RGBA format
+    
+    // Prepare bitmap info header
+    let mut bmi_h: BITMAPINFOHEADER = BITMAPINFOHEADER::default();
+    bmi_h.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    bmi_h.biWidth = width as i32;
+    bmi_h.biHeight = -(height as i32); // Negative to indicate a top-down DIB
+    bmi_h.biPlanes = 1;
+    bmi_h.biBitCount = 32; // 32 bits for RGBA
+    bmi_h.biCompression = BI_RGB.0;
+
+    let bmi = Box::new(BITMAPINFO {
+        bmiHeader: bmi_h,
+        bmiColors: [RGBQUAD::default(); 1],
+    });
+    //let mut pb: *mut std::ffi::c_void = std::ptr::null_mut();
+
+    let image_data_ptr: *const std::ffi::c_void = image_data.as_ptr() as *const std::ffi::c_void;
+    let h_bitmap = unsafe {
+        CreateDIBitmap(
+            hdc,
+            Some(&bmi.bmiHeader),
+            CBM_INIT as u32,
+            Some(image_data_ptr), // Use the padded image data
+            Some(bmi.as_ref()), // Full bitmap info (including header)
+            DIB_RGB_COLORS // Use RGB color data
+        )
+    };
+
+    /*
+    #[cfg(debug_assertions)]
+    match debug::check_hbitmap(h_bitmap, *bmi, hdc, width, height, 32) {
+       Ok(k) => println!("{}", k),
+       Err(e) => return Err(e),        
+    };
+    */
+    
+    if h_bitmap.is_invalid() {
+        // Get the last error if the bitmap creation failed
+        let error_code = unsafe { GetLastError() };
+        return Err(format!("Failed to create bitmap. Error code: {}", error_code.0));
+    }
+    Ok(h_bitmap)
+
 }

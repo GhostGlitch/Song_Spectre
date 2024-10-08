@@ -971,7 +971,6 @@ dependencies = [
  "indexmap",
  "tempfile",
  "windows",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
