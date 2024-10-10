@@ -6,7 +6,9 @@ use windows::{core::{w, PCWSTR},
             self, InvalidateRect, RedrawWindow, UpdateWindow, HBRUSH, HRGN}, 
         System::LibraryLoader::GetModuleHandleA, 
         UI::WindowsAndMessaging::{self as WandM, 
-            CreateWindowExW, DestroyWindow, DispatchMessageW, GetLayeredWindowAttributes, GetMessageW, GetWindowLongPtrW, PostQuitMessage, RegisterClassW, SendMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, TranslateMessage, HCURSOR, MSG}}};
+            CreateWindowExW, DestroyWindow, DispatchMessageW, GetLayeredWindowAttributes, GetMessageW, GetWindowLongPtrW, PostQuitMessage, RegisterClassW, SendMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, TranslateMessage, HCURSOR, MSG, WNDCLASSW}}};
+//I do not know why this glob import is necessary. but without it the window behaves incorrectly despite the compiler being happy.
+use windows::Win32::UI::WindowsAndMessaging::*;
 use crate::{debug};
 use crate::props::*;
 use std::time::Duration;
@@ -15,7 +17,6 @@ use std::{sync::{Arc, Once}, thread};
 static mut TOAST_INSTANCE: Option<Arc<GhoastClass>> = None;
 static INITIALIZE_ONCE: Once = Once::new(); // Once to ensure Toast is initialized only once
 
-use windows::Win32::UI::WindowsAndMessaging::WNDCLASSW;
 unsafe extern "system" fn custom_window_proc(
     hwnd: HWND,
     msg: u32,
