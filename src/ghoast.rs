@@ -8,10 +8,9 @@ use windows::{core::{w, PCWSTR},
             CreateWindowExW, DestroyWindow, DispatchMessageW, GetLayeredWindowAttributes, GetMessageW, GetWindowLongPtrW, PostQuitMessage, RegisterClassW, SendMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, TranslateMessage, HCURSOR, MSG, WNDCLASSW}}};
 //I do not know why this glob import is necessary. but without it the window behaves incorrectly despite the compiler being happy.
 use windows::Win32::UI::WindowsAndMessaging::*;
-use crate::{debug};
 use crate::props::*;
-use std::time::Duration;
-use std::{sync::{Arc, Once}, thread};
+use crate::utils::*;
+use std::sync::{Arc, Once};
 
 static mut TOAST_INSTANCE: Option<Arc<GhoastClass>> = None;
 static INITIALIZE_ONCE: Once = Once::new(); // Once to ensure Toast is initialized only once
@@ -128,7 +127,7 @@ impl GhoastClass {
         //Needs To Be Propper Error eventually.
         if atom == 0 {
             println!("Window class registration failed.");
-            thread::sleep(Duration::from_secs(1));
+            slp(1.0);
             return None;
         }
         Some(Self { class, atom, h_instance})
@@ -200,7 +199,7 @@ impl Ghoast {
     pub fn fade_out(&mut self, seconds: f32) -> bool {
         let cref = make_color_ref(126, 126, 126);
         let mut alpha = self.get_current_alpha().unwrap();
-        let dur = Duration::from_secs_f32(seconds/alpha as f32);
+        let dur = (seconds/alpha as f32);
         while self.message_loop() {
             alpha -= 1;
             println!("{}", alpha);
@@ -210,7 +209,7 @@ impl Ghoast {
             } else {
             let _ = self.set_transparency(cref, alpha);
             self.redraw();
-            thread::sleep(dur);
+            slp(dur);
         }}
         return false;
     }

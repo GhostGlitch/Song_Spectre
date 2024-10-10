@@ -1,13 +1,14 @@
 mod props;
 mod ghoast;
 #[cfg(debug_assertions)]
-mod debug;
+mod utils;
 use props::*;
 use ghoast::*;
+use utils::*;
 #[allow(unused_imports)]
 use windows::{core::*, Data};
 use WMedia::Control::GlobalSystemMediaTransportControlsSessionManager as TCSManager;
-use std::time::Duration;
+
 #[allow(unused_imports)]
 use std::{io::{Error, ErrorKind}, result::Result};
 use futures::executor::block_on;
@@ -59,6 +60,6 @@ fn main() {
         //#[cfg(debug_assertions)]
         //let _  = debug::display_spec_props(&spec_props);
     }
-    thread::sleep(Duration::from_secs(20));
+    slp(20.0);
     println!("------------------end------------------");
 }

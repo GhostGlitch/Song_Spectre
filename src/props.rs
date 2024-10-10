@@ -1,4 +1,4 @@
-mod img;
+pub mod img;
 pub use img::*;
 use windows::Foundation::IReference;
 pub use windows::Media::{self as WMedia, MediaPlaybackType as MPT, 
