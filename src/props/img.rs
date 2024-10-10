@@ -121,13 +121,21 @@ pub fn dynamic_image_to_bitmap(hdc: HDC, image: &DynamicImage) -> Result<HBITMAP
         )
     };
 
-    /*
+    
     #[cfg(debug_assertions)]
+
+    match debug::check_hbitmap(h_bitmap, *bmi, hdc, width, height, 32) {
+       Ok(k) => print!(""),
+       Err(e) => return Err(e),        
+    };
+
+    /* 
     match debug::check_hbitmap(h_bitmap, *bmi, hdc, width, height, 32) {
        Ok(k) => println!("{}", k),
        Err(e) => return Err(e),        
     };
     */
+    
     
     if h_bitmap.is_invalid() {
         // Get the last error if the bitmap creation failed

@@ -39,18 +39,17 @@ unsafe extern "system" fn custom_window_proc(
 ) -> LRESULT {
     match msg {
         WM_PAINT => {
-            let mut ps: PAINTSTRUCT = std::mem::zeroed();
-            let hdc = BeginPaint(hwnd, &mut ps); // Begin painting
+            let hdc = GetDC(hwnd);
             if hdc.is_invalid() {
                 println!("Failed to get device context.");
-                EndPaint(hwnd, &ps);
+                DeleteDC(hdc);
                 return LRESULT(0);
             } 
             // Create a memory device context
             let mem_dc = CreateCompatibleDC(hdc);
             if mem_dc.0.is_null() {
                 println!("Failed to create memory device context.");
-                EndPaint(hwnd, &ps);
+                DeleteDC(hdc);
                 return LRESULT(0);
             }
             let thumbnail_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const DynamicImage };
@@ -63,23 +62,20 @@ unsafe extern "system" fn custom_window_proc(
                 Err(e) => {
                     println!("{}", e);
                     DeleteDC(mem_dc);
-                    EndPaint(hwnd, &ps);
+                    DeleteDC(hdc);
                     return LRESULT(0); // Return early on error
                 }
             };
 
             // Select the bitmap into the device context
-            let old_bitmap: HGDIOBJ = SelectObject(mem_dc, bitmap);
+            SelectObject(mem_dc, bitmap);
 
             // Use the dimensions of the image for the BitBlt
-            let (width, height) = ERROR_THUMB.dimensions();
-            let dest_x = 0;
-            let dest_y = 0;
-
+            let (width, height) = thumb.dimensions();
             // Draw the bitmap on the window
             let blit_result = BitBlt(
                 hdc,             // Destination device context
-                dest_x, dest_y, // Destination coordinates
+                0, 0, // Destination coordinates
                 width as i32, height as i32, // Width and height of the bitmap
                 mem_dc,            // Source device context
                 0, 0,          // Source coordinates (from the bitmap)
@@ -89,16 +85,16 @@ unsafe extern "system" fn custom_window_proc(
                 println!("Failed to draw bitmap.");
                 println!("{:?}", blit_result)
             } else {
-                //println!("Bitmap drawn successfully.");
+                println!("Bitmap drawn successfully.");
             }
 
-            SelectObject(mem_dc, old_bitmap);
             DeleteObject(bitmap); // Delete the bitmap object
             DeleteDC(mem_dc); // Delete the memory DC
-            EndPaint(hwnd, &ps); // End painting
+            DeleteDC(hdc);
             return LRESULT(0);
         } else {
-            return LRESULT(0);
+            print!("thumbnail ptr null");
+            return LRESULT(1);
         }
     }
         WM_CLOSE => {
@@ -166,11 +162,9 @@ pub struct Ghoast {
     pub hwnd: HWND,
     pub h_instance: HINSTANCE,
     pub c_name: String,
-    pub t_inst: Arc<GhoastClass>,
     pub is_good: bool,
     pub title: String,
     pub props: SpectreProps,
-    pub thumb: DynamicImage
 }
 impl Ghoast {
     pub fn new(title: &str, props: SpectreProps) -> Self {
@@ -183,7 +177,7 @@ impl Ghoast {
                     WS_EX_LAYERED | WS_EX_NOACTIVATE,
                     name,
                     PCWSTR::from_raw(title.encode_utf16().chain(Some(0)).collect::<Vec<u16>>().as_ptr()),
-                    WS_VISIBLE | WS_POPUP,
+                     WS_POPUP,
                     CW_USEDEFAULT, CW_USEDEFAULT,
                     300, 300, 
                     HWND::default(), // Parent window
@@ -192,23 +186,17 @@ impl Ghoast {
                     None, // Additional data
                 )
             }.unwrap();
-
-        let dumb  = props.clone();
-        let thumb = props.thumbnail.clone();
-        let window = Self { hwnd , h_instance: inst.h_instance, c_name: unsafe { name.to_string().unwrap_or_default() }, t_inst: inst, is_good: true, title: title.to_string(), props, thumb};
-        let thumbnail_ptr = Box::into_raw(Box::new(dumb.thumbnail));
+        let thumbnail_ptr = Box::into_raw(Box::new(props.thumbnail.clone()));
         unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, thumbnail_ptr as _) };
-        window
+        Self { hwnd , h_instance: inst.h_instance, c_name: unsafe { name.to_string().unwrap_or_default() }, is_good: true, title: title.to_string(), props}
     }    // Method to show the window
-    pub fn show(&self) {
-        unsafe {
-            ShowWindow(self.hwnd, SW_SHOW);
-            UpdateWindow(self.hwnd);
-            SetLayeredWindowAttributes(self.hwnd, make_color_ref(126, 126, 126), 125, LWA_ALPHA);
-            self.inloop();           
-        }
-    }
-    fn inloop(&self)->bool {
+    pub fn init(&self) {
+            self.show();
+            self.update();
+            self.set_transparency(make_color_ref(126, 126, 126), 126);
+            self.check_messages();          
+    }  
+    fn check_messages(&self)->bool {
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
             if  GetMessageW(&mut msg, HWND::default(), 0, 0).into() {
@@ -220,28 +208,52 @@ impl Ghoast {
             }
         }
     }
-    pub fn mloop(&mut self)->bool {
-        let boo = self.inloop();
+    pub fn message_loop(&mut self)->bool {
+        let boo = self.check_messages();
         if !boo { self.is_good = false;}
         boo
     }
-    pub fn loopyloop(&mut self) -> bool {
-        while self.mloop() {
-            println!("loopyloop");
-            thread::sleep(time::Duration::from_secs_f32(0.1));
-        }
-        println!("loopyloop fin");
+    pub fn fade_out(&mut self, seconds: f32) -> bool {
+        let cref = make_color_ref(126, 126, 126);
+        let mut alpha = self.get_current_alpha().unwrap();
+        let dur = time::Duration::from_secs_f32(seconds/alpha as f32);
+        while self.message_loop() {
+            alpha -= 1;
+            println!("{}", alpha);
+            if alpha < 1 {
+                self.destruct();
+                self.is_good = false;
+                break;
+            } else {
+            let _ = self.set_transparency(cref, alpha);
+            self.redraw();
+            thread::sleep(dur);
+        }}
         return false;
     }
-    pub fn dbg_self_destruct(&mut self) {
-        unsafe {
-            // Send the WM_CLOSE message to the window
-            SendMessageW(self.hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
-            while self.is_good {
-                self.mloop();   
-                println!("SUICIDE")
-            }
+
+    pub fn destruct(&mut self) {
+        // Send the WM_CLOSE message to the window
+        self.message_self(WM_CLOSE);
+        while self.message_loop() { 
+            println!("SUICIDE")
         }
+    }
+
+    fn show(&self) -> bool{
+        unsafe {ShowWindow(self.hwnd, SW_SHOW)}.into()
+    }
+    fn update(&self) -> bool{
+        unsafe {UpdateWindow(self.hwnd)}.into()
+    }
+    fn set_transparency(&self, crkey: COLORREF, alpha: u8) -> Result<(), windows::core::Error> {
+        unsafe {SetLayeredWindowAttributes(self.hwnd, crkey, alpha, LWA_ALPHA)}
+    }
+    pub fn redraw(&self) -> bool{
+        unsafe { RedrawWindow(self.hwnd, None, HRGN::default(), RDW_INVALIDATE | RDW_ALLCHILDREN) }.into()
+    }
+    pub fn message_self(&self, msg: u32) -> LRESULT {
+        unsafe {SendMessageW(self.hwnd, msg, WPARAM(0), LPARAM(0))}
     }
     pub fn request_paint(&self) {
         unsafe {
@@ -250,6 +262,17 @@ impl Ghoast {
 
             // Update the window to send a WM_PAINT message immediately
             UpdateWindow(self.hwnd);
+        }
+    }
+    pub fn get_current_alpha(&self) -> Option<u8> {
+        let mut alpha: u8 = 0;
+        let mut crkey: COLORREF = COLORREF(0);
+    
+        // Call GetLayeredWindowAttributes to retrieve current attributes
+        if unsafe { GetLayeredWindowAttributes(self.hwnd, None, Some(&mut alpha), None).is_ok() } {
+            Some(alpha)
+        } else {
+            None
         }
     }
 }

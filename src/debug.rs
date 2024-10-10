@@ -85,7 +85,7 @@ pub(crate) fn cls() {
 #[cfg(debug_assertions)]
 pub(crate)  fn show_ghoast(title: &str, props: SpectreProps) -> Ghoast {
     let toast_window = Ghoast::new(title, props);
-    toast_window.show();
+    toast_window.init();
     print!("new {:?}", toast_window.c_name);
     print!(" named {:?}", toast_window.title);
     print!(" | WinID: {:?}", toast_window.hwnd);

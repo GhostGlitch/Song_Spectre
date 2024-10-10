@@ -38,14 +38,7 @@ fn toast_thread(title: String, props: SpectreProps) {
     thread::spawn(move || {
         let tit = props.title.clone();
         let mut t = debug::show_ghoast(&title, props);
-        while t.mloop() {//t.request_paint();
-            if t.is_good {
-            t.mloop();
-
-            }
-
-        }
-        println!("{:?}", tit);
+        t.fade_out(5.0);
     });
 }
 
