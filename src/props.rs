@@ -1,10 +1,9 @@
 mod img;
 pub use img::*;
-#[allow(unused_imports)]
-use windows::{core::*, Data, Foundation::IReference,
-    Media::{ MediaPlaybackType as MPT, 
-        Control::{
-            GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
+use windows::Foundation::IReference;
+pub use windows::Media::{self as WMedia, MediaPlaybackType as MPT, 
+    Control::{ 
+        GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties}};
 use core::fmt;
 use std::fmt::Display;
 

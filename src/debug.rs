@@ -1,11 +1,11 @@
 //debug functions, make sure to remove or exclude before making release build.
 
 // FIND A WAY TO MARK WHOLE MOD AS DEBUG NOT JUST THE FUNCTIONS
-use std::{ fs, io::{Cursor, Error}, process::{Command, Stdio}, result::Result};
+use std::{ fs, io::{Cursor, Error}, process::{Command, Stdio}, result::Result, env};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use std::env;
-use crate::props::*;
-use crate::ghoast::*;
+use crate::{ghoast::*, props::*};
+use windows::Win32::{Foundation::GetLastError, 
+    Graphics::Gdi::GetObjectW};
 //shows a DynamicImage in a browser window and returns a string of the file location.
 pub(crate) fn view_image_rgba8 (img: Option<&image::RgbaImage>) -> Result<String, Error> {
     let fuc = img.unwrap().clone();
@@ -96,8 +96,7 @@ pub(crate)  fn show_ghoast(title: &str, props: SpectreProps) -> Ghoast {
     toast_window
 }
 
-use windows::Win32::{Foundation::GetLastError, Graphics::Gdi::{GetObjectW, GetStockObject, BITMAP, BITMAPINFO, DIB_RGB_COLORS, HBITMAP, HDC, OBJ_BITMAP}};
-use std::ptr;
+
 pub trait DbgStrExt {
     fn indent(&self, indent: u8) -> String;
 }

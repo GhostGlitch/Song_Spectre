@@ -1,34 +1,19 @@
-use image::DynamicImage;
-use image::GenericImageView;
-use windows::core::PCWSTR;
-use windows::Win32::Foundation;
-use windows::Win32::Graphics::Gdi::GetSysColorBrush;
-use windows::Win32::Graphics::Gdi::SYS_COLOR_INDEX;
-use windows::Win32::UI::WindowsAndMessaging;
-use windows::Win32::Graphics::Gdi;
-use windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE;
-use windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE;
-use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::Win32;
-use windows as win;
-use windows::Win32::System::LibraryLoader::GetModuleHandleA;
-use windows::Win32::Graphics::Gdi::*;
-use windows::Win32::Foundation::LRESULT;
-use windows::Win32::Foundation::*;
-use crate::debug;
-use crate::dynamic_image_to_bitmap;
-use crate::w;
-use crate::SpectreProps;
-use crate::ERROR_THUMB;
-use core::time;
-use std::f32::consts::E;
-//////////////////////////////////////////////////////////////////
-use std::sync::Arc;
-use std::sync::Once;
-use std::thread;
+use image::{DynamicImage, GenericImageView};
+use windows::{core::{w, PCWSTR}, 
+    Win32::{Foundation::{self as WFound, 
+            HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+        Graphics::Gdi::{
+            self, InvalidateRect, RedrawWindow, UpdateWindow, HBRUSH, HRGN}, 
+        System::LibraryLoader::GetModuleHandleA, 
+        UI::WindowsAndMessaging::{self as WandM, 
+            CreateWindowExW, DestroyWindow, DispatchMessageW, GetLayeredWindowAttributes, GetMessageW, GetWindowLongPtrW, PostQuitMessage, RegisterClassW, SendMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, TranslateMessage, HCURSOR, MSG}}};
+use crate::{debug};
+use crate::props::*;
+use std::time::Duration;
+use std::{sync::{Arc, Once}, thread};
+
 static mut TOAST_INSTANCE: Option<Arc<GhoastClass>> = None;
 static INITIALIZE_ONCE: Once = Once::new(); // Once to ensure Toast is initialized only once
-////////////////////////////////////////////////////////////////////////////////////////////
 
 use windows::Win32::UI::WindowsAndMessaging::WNDCLASSW;
 unsafe extern "system" fn custom_window_proc(
@@ -39,20 +24,20 @@ unsafe extern "system" fn custom_window_proc(
 ) -> LRESULT {
     match msg {
         WM_PAINT => {
-            let hdc = GetDC(hwnd);
+            let hdc = Gdi::GetDC(hwnd);
             if hdc.is_invalid() {
                 println!("Failed to get device context.");
-                DeleteDC(hdc);
+                Gdi::DeleteDC(hdc);
                 return LRESULT(0);
             } 
             // Create a memory device context
-            let mem_dc = CreateCompatibleDC(hdc);
+            let mem_dc = Gdi::CreateCompatibleDC(hdc);
             if mem_dc.0.is_null() {
                 println!("Failed to create memory device context.");
-                DeleteDC(hdc);
+                Gdi::DeleteDC(hdc);
                 return LRESULT(0);
             }
-            let thumbnail_ptr = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const DynamicImage };
+            let thumbnail_ptr = unsafe { GetWindowLongPtrW(hwnd, WandM::GWLP_USERDATA) as *const DynamicImage };
             if !thumbnail_ptr.is_null() {
                 let thumb = unsafe { &*thumbnail_ptr };
             
@@ -61,25 +46,25 @@ unsafe extern "system" fn custom_window_proc(
                 Ok(bmp) => bmp, // If successful, assign to bitmap
                 Err(e) => {
                     println!("{}", e);
-                    DeleteDC(mem_dc);
-                    DeleteDC(hdc);
+                    Gdi::DeleteDC(mem_dc);
+                    Gdi::DeleteDC(hdc);
                     return LRESULT(0); // Return early on error
                 }
             };
 
             // Select the bitmap into the device context
-            SelectObject(mem_dc, bitmap);
+            Gdi::SelectObject(mem_dc, bitmap);
 
             // Use the dimensions of the image for the BitBlt
             let (width, height) = thumb.dimensions();
             // Draw the bitmap on the window
-            let blit_result = BitBlt(
+            let blit_result = Gdi::BitBlt(
                 hdc,             // Destination device context
                 0, 0, // Destination coordinates
                 width as i32, height as i32, // Width and height of the bitmap
                 mem_dc,            // Source device context
                 0, 0,          // Source coordinates (from the bitmap)
-                SRCCOPY,
+                Gdi::SRCCOPY,
             );
             if blit_result.is_err() {
                 println!("Failed to draw bitmap.");
@@ -88,9 +73,9 @@ unsafe extern "system" fn custom_window_proc(
                 println!("Bitmap drawn successfully.");
             }
 
-            DeleteObject(bitmap); // Delete the bitmap object
-            DeleteDC(mem_dc); // Delete the memory DC
-            DeleteDC(hdc);
+            Gdi::DeleteObject(bitmap); // Delete the bitmap object
+            Gdi::DeleteDC(mem_dc); // Delete the memory DC
+            Gdi::DeleteDC(hdc);
             return LRESULT(0);
         } else {
             print!("thumbnail ptr null");
@@ -108,7 +93,7 @@ unsafe extern "system" fn custom_window_proc(
             println!("DESTROY");
             LRESULT(0) // Indicate the message was handled
         }
-        _ => DefWindowProcW(hwnd, msg, wparam, lparam), // Default handling
+        _ => WandM::DefWindowProcW(hwnd, msg, wparam, lparam), // Default handling
     }
 }
 
@@ -144,7 +129,7 @@ impl GhoastClass {
         //Needs To Be Propper Error eventually.
         if atom == 0 {
             println!("Window class registration failed.");
-            thread::sleep(time::Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(1));
             return None;
         }
         Some(Self { class, atom, h_instance})
@@ -173,12 +158,12 @@ impl Ghoast {
             // Create the window using the registered class
             let hwnd = unsafe {
                 CreateWindowExW(
-                    WS_EX_TOPMOST | WS_EX_TRANSPARENT |
-                    WS_EX_LAYERED | WS_EX_NOACTIVATE,
+                    WandM::WS_EX_TOPMOST | WandM::WS_EX_TRANSPARENT |
+                    WandM::WS_EX_LAYERED | WandM::WS_EX_NOACTIVATE,
                     name,
                     PCWSTR::from_raw(title.encode_utf16().chain(Some(0)).collect::<Vec<u16>>().as_ptr()),
-                     WS_POPUP,
-                    CW_USEDEFAULT, CW_USEDEFAULT,
+                    WandM::WS_POPUP,
+                    WandM::CW_USEDEFAULT, WandM::CW_USEDEFAULT,
                     300, 300, 
                     HWND::default(), // Parent window
                     None, // Menu
@@ -187,7 +172,7 @@ impl Ghoast {
                 )
             }.unwrap();
         let thumbnail_ptr = Box::into_raw(Box::new(props.thumbnail.clone()));
-        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, thumbnail_ptr as _) };
+        unsafe { SetWindowLongPtrW(hwnd, WandM::GWLP_USERDATA, thumbnail_ptr as _) };
         Self { hwnd , h_instance: inst.h_instance, c_name: unsafe { name.to_string().unwrap_or_default() }, is_good: true, title: title.to_string(), props}
     }    // Method to show the window
     pub fn init(&self) {
@@ -216,7 +201,7 @@ impl Ghoast {
     pub fn fade_out(&mut self, seconds: f32) -> bool {
         let cref = make_color_ref(126, 126, 126);
         let mut alpha = self.get_current_alpha().unwrap();
-        let dur = time::Duration::from_secs_f32(seconds/alpha as f32);
+        let dur = Duration::from_secs_f32(seconds/alpha as f32);
         while self.message_loop() {
             alpha -= 1;
             println!("{}", alpha);
@@ -233,7 +218,7 @@ impl Ghoast {
 
     pub fn destruct(&mut self) {
         // Send the WM_CLOSE message to the window
-        self.message_self(WM_CLOSE);
+        self.message_self(WandM::WM_CLOSE);
         while self.check_messages() { 
             println!("SUICIDE")
         }
@@ -241,16 +226,16 @@ impl Ghoast {
     }
 
     fn show(&self) -> bool{
-        unsafe {ShowWindow(self.hwnd, SW_SHOW)}.into()
+        unsafe {ShowWindow(self.hwnd, WandM::SW_SHOW)}.into()
     }
     fn update(&self) -> bool{
         unsafe {UpdateWindow(self.hwnd)}.into()
     }
     fn set_transparency(&self, crkey: COLORREF, alpha: u8) -> Result<(), windows::core::Error> {
-        unsafe {SetLayeredWindowAttributes(self.hwnd, crkey, alpha, LWA_ALPHA)}
+        unsafe {SetLayeredWindowAttributes(self.hwnd, crkey, alpha, WandM::LWA_ALPHA)}
     }
     pub fn redraw(&self) -> bool{
-        unsafe { RedrawWindow(self.hwnd, None, HRGN::default(), RDW_INVALIDATE | RDW_ALLCHILDREN) }.into()
+        unsafe { RedrawWindow(self.hwnd, None, HRGN::default(), Gdi::RDW_INVALIDATE | Gdi::RDW_ALLCHILDREN) }.into()
     }
     pub fn message_self(&self, msg: u32) -> LRESULT {
         unsafe {SendMessageW(self.hwnd, msg, WPARAM(0), LPARAM(0))}
@@ -258,7 +243,7 @@ impl Ghoast {
     pub fn request_paint(&self) {
         unsafe {
             // Invalidate the window's client area
-            InvalidateRect(self.hwnd, None, TRUE);
+            InvalidateRect(self.hwnd, None, WFound::TRUE);
 
             // Update the window to send a WM_PAINT message immediately
             UpdateWindow(self.hwnd);

@@ -1,6 +1,12 @@
 use std::sync::LazyLock;
 #[allow(unused_imports)]
 use crate::debug;
+use windows::Win32::{Foundation::GetLastError, 
+    Graphics::Gdi::{
+        CreateDIBitmap, BITMAPINFOHEADER, BI_RGB, CBM_INIT, RGBQUAD}};
+use image::GenericImageView;
+pub(crate) use windows::Win32::Graphics::Gdi::{
+    HBITMAP, HDC, BITMAP, BITMAPINFO, DIB_RGB_COLORS};
 
 pub(crate) const THUMB_W: u32 = 300;
 pub(crate) const THUMB_H: u32 = 300;
@@ -10,8 +16,8 @@ pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
 });
 
 
-pub(crate) use traits::*;
-mod traits{
+pub(crate) use img_traits::*;
+mod img_traits{
 pub(crate) use windows::Storage::Streams::IRandomAccessStreamReference as StreamRef;
 pub(crate) use image::imageops::FilterType;
 pub(crate) use image::DynamicImage;
@@ -82,12 +88,6 @@ pub fn ref_to_thumb(reference: Option<StreamRef>) -> DynamicImage {
         Err(_) => ERROR_THUMB.clone(),
     }
 }
-
-
-use windows::Win32::Foundation::GetLastError;
-use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateDIBitmap, DeleteObject, GetDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CBM_INIT, DIB_RGB_COLORS, HBITMAP, HDC, RGBQUAD};
-use windows::Win32::Graphics::Gdi::HGDIOBJ;
-use image::GenericImageView;
 
 // Function to convert DynamicImage to a GDI bitmap
 pub fn dynamic_image_to_bitmap(hdc: HDC, image: &DynamicImage) -> Result<HBITMAP, String> {

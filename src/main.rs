@@ -5,11 +5,9 @@ mod debug;
 use props::*;
 use ghoast::*;
 #[allow(unused_imports)]
-use windows::{core::*, Data, 
-    Media::{ MediaPlaybackType as MPT, 
-        Control::{
-            GlobalSystemMediaTransportControlsSession as TCS, GlobalSystemMediaTransportControlsSessionManager as TCSManager, GlobalSystemMediaTransportControlsSessionMediaProperties as TCSProperties, *}}};
-use core::time;
+use windows::{core::*, Data};
+use WMedia::Control::GlobalSystemMediaTransportControlsSessionManager as TCSManager;
+use std::time::Duration;
 #[allow(unused_imports)]
 use std::{io::{Error, ErrorKind}, result::Result};
 use futures::executor::block_on;
@@ -61,6 +59,6 @@ fn main() {
         //#[cfg(debug_assertions)]
         //let _  = debug::display_spec_props(&spec_props);
     }
-    thread::sleep(time::Duration::from_secs(20));
+    thread::sleep(Duration::from_secs(20));
     println!("------------------end------------------");
 }
