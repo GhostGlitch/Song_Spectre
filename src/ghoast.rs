@@ -1,7 +1,6 @@
 use image::{DynamicImage, GenericImageView};
 use windows::{core::{w, PCWSTR}, 
-    Win32::{Foundation::{self as WFound, 
-            HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
+    Win32::{Foundation::{self as WFound, COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM},
         Graphics::Gdi::{
             self, InvalidateRect, RedrawWindow, UpdateWindow, HBRUSH, HRGN}, 
         System::LibraryLoader::GetModuleHandleA, 
@@ -98,7 +97,6 @@ unsafe extern "system" fn custom_window_proc(
     }
 }
 
-use windows::Win32::Foundation::COLORREF;
 
 pub fn make_color_ref(r: u8, g: u8, b: u8) -> COLORREF {
     // Combine the RGB components into a COLORREF value

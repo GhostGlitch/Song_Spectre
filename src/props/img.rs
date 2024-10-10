@@ -10,7 +10,7 @@ pub(crate) use windows::Win32::Graphics::Gdi::{
 
 pub(crate) const THUMB_W: u32 = 300;
 pub(crate) const THUMB_H: u32 = 300;
-const IMAGE_DATA: &[u8] = include_bytes!("../error_thumb.png"); // Embed the PNG file at compile time
+const IMAGE_DATA: &[u8] = include_bytes!("error_thumb.png"); // Embed the PNG file at compile time
 pub(crate) static ERROR_THUMB: LazyLock<DynamicImage> = LazyLock::new(|| {
     image::load_from_memory(IMAGE_DATA).unwrap_or_else(|_| DynamicImage::new_rgb8(THUMB_W, THUMB_H))
 });
