@@ -222,7 +222,6 @@ impl Ghoast {
             println!("{}", alpha);
             if alpha < 1 {
                 self.destruct();
-                self.is_good = false;
                 break;
             } else {
             let _ = self.set_transparency(cref, alpha);
@@ -235,9 +234,10 @@ impl Ghoast {
     pub fn destruct(&mut self) {
         // Send the WM_CLOSE message to the window
         self.message_self(WM_CLOSE);
-        while self.message_loop() { 
+        while self.check_messages() { 
             println!("SUICIDE")
         }
+        self.is_good = false;
     }
 
     fn show(&self) -> bool{
